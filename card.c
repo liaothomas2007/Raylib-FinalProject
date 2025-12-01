@@ -13,9 +13,9 @@ Texture2D card_back;
 const int CARD_WIDTH_BASE = 100;
 const int CARD_HEIGHT_BASE = 145;
 const float CARD_SCALE = 0.3f; 
-const int HAND_START_X = 150;  
-const int HAND_START_Y = 700;  
-const int CARD_GAP = 30;      
+const int HAND_START_X = 75;  
+const int HAND_START_Y = 680;  
+const int CARD_GAP = 130;      
 const int CARD_STEP = (int)(CARD_WIDTH_BASE * CARD_SCALE + CARD_GAP);
 
 void LoadCardTextures() 
@@ -80,20 +80,6 @@ void DrawCards(Card* deck, Card* hand, int handSize, int* deckTopIndex) //抽牌
     }
 }
 
-// *** 修正/新增 ShowDeck 的定義 ***
-void ShowDeck()
-{
-    const float scale = 0.35f;
-    const int margin = 20;
-    Vector2 pilePos = 
-    {
-        GetScreenWidth() - card_back.width * scale - margin,
-        GetScreenHeight() - card_back.height * scale - margin
-    };
-    DrawTextureEx(card_back, pilePos, 0, scale, WHITE);
-}
-
-
 void UpdateAndDrawHand(Card* hand, int handSize)
 {
     Vector2 mouse = GetMousePosition();
@@ -106,8 +92,12 @@ void UpdateAndDrawHand(Card* hand, int handSize)
         float x = HAND_START_X + i * CARD_STEP;
         float y = hand[i].currentY; // 使用當前動畫Y座標
 
+        Texture2D tex = cardTextures[hand[i].suit][hand[i].rank];
+        float cardW = tex.width * CARD_SCALE;
+        float cardH = tex.height * CARD_SCALE;
+
         // 定義碰撞框
-        Rectangle rect = { x, y, CARD_WIDTH_BASE * CARD_SCALE, CARD_HEIGHT_BASE * CARD_SCALE};
+        Rectangle rect = (Rectangle){ x, y, cardW, cardH };
 
         // 1. 處理輸入 (Input)
         if (CheckCollisionPointRec(mouse, rect))
@@ -130,20 +120,6 @@ void UpdateAndDrawHand(Card* hand, int handSize)
         DrawRectangleLinesEx(rect, 2, BLACK);
     }
 
-    // 處理按下空白鍵打牌邏輯
-    if (IsKeyPressed(KEY_SPACE))
-    {
-        // 模擬打出：牌型判斷功能實現前，先標記為 played=true
-        for (int i = 0; i < handSize; i++)
-        {
-            if (hand[i].selected)
-            {
-                hand[i].played = true; // 標記為打出
-                hand[i].selected = false; // 取消選取
-            }
-        }
-        // 補牌邏輯會在 main.c 的迴圈中呼叫 DrawCards 處理
-    }
 }
 
 // 1. 比較函式 (為了讓 qsort 知道如何排列卡牌)
@@ -229,6 +205,10 @@ void CheckAndScoreHand(Card* deck, Card* hand, int handSize, int* deckTopIndex, 
     else
     {
         printf("無效牌型! (選了 %d 張)\n", count);
-        // 可以選擇在這裡加入音效或視覺提示告訴玩家牌型無效
+        for (int i = 0; i < handSize; i++)
+        {
+            hand[i].selected = false;
+            hand[i].targetY = HAND_START_Y; // 卡牌縮回去
+        }
     }
 }

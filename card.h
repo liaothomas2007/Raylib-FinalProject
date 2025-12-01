@@ -32,7 +32,6 @@ extern const int CARD_STEP;
 void InitDeck(Card* deck);
 void ShuffleDeck(Card* deck, int size);
 void LoadCardTextures();
-void ShowDeck();
 void DrawCards(Card* deck, Card* hand, int handSize, int* deckTopIndex); 
 void UpdateAndDrawHand(Card* hand, int handSize);
 void CheckAndScoreHand(Card* deck, Card* hand, int handSize, int* deckTopIndex, float* score);
