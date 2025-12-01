@@ -1,0 +1,7 @@
+{
+    "C_Cpp.errorSquiggles": "disabled",
+    "files.associations": {
+        "card.h": "c",
+        "raylib.h": "c"
+    }
+}
