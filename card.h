@@ -35,5 +35,6 @@ void LoadCardTextures();
 void ShowDeck();
 void DrawCards(Card* deck, Card* hand, int handSize, int* deckTopIndex); 
 void UpdateAndDrawHand(Card* hand, int handSize);
+void CheckAndScoreHand(Card* deck, Card* hand, int handSize, int* deckTopIndex, float* score);
 
 #endif

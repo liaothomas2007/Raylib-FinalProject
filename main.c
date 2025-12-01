@@ -24,25 +24,37 @@ int main()
     // 第一次發牌 (使用指標傳遞)
     DrawCards(deck,hand,7,&deckTopIndex);
     
+    float score = 0.0f; // 1. 確保有宣告分數變數
 
     while (!WindowShouldClose()) 
     {
-        // *** 補牌邏輯：每幀都嘗試補牌 (如果打了牌，會在下一幀補上) ***
-        DrawCards(deck,hand,7,&deckTopIndex); 
+        if (IsKeyPressed(KEY_SPACE))
+        {
+            CheckAndScoreHand(deck, hand, 7, &deckTopIndex, &score);
+        }
 
         BeginDrawing();
         ClearBackground(RAYWHITE);
         
-        ShowDeck(); // 繪製牌堆
-        UpdateAndDrawHand(hand, 7); // 繪製手牌與互動
+        ShowDeck();
+        UpdateAndDrawHand(hand, 7);
         
+        // 3. 顯示 UI
         DrawText(TextFormat("Deck: %d", 52 - deckTopIndex), 10, 10, 20, BLACK);
+        DrawText(TextFormat("Score: %.1f", score), 10, 40, 20, DARKBLUE); // 顯示分數
+
         EndDrawing();
     }
 
     // 釋放記憶體
     UnloadTexture(card_back);
-    // 這裡應也 Unload 所有 cardTextures
+
+    for (int s = 0; s < 4; s++) {
+        for (int r = 0; r < 13; r++) {
+            UnloadTexture(cardTextures[s][r]);
+        }
+    }
+
     free(deck);
     free(hand);
 

@@ -15,7 +15,7 @@ const int CARD_HEIGHT_BASE = 145;
 const float CARD_SCALE = 0.3f; 
 const int HAND_START_X = 150;  
 const int HAND_START_Y = 700;  
-const int CARD_GAP = 10;      
+const int CARD_GAP = 30;      
 const int CARD_STEP = (int)(CARD_WIDTH_BASE * CARD_SCALE + CARD_GAP);
 
 void LoadCardTextures() 
@@ -143,5 +143,92 @@ void UpdateAndDrawHand(Card* hand, int handSize)
             }
         }
         // 補牌邏輯會在 main.c 的迴圈中呼叫 DrawCards 處理
+    }
+}
+
+// 1. 比較函式 (為了讓 qsort 知道如何排列卡牌)
+// 排列順序：點數小 -> 點數大
+int CompareCardsByRank(const void* a, const void* b)
+{
+    const Card* cardA = (const Card*)a;
+    const Card* cardB = (const Card*)b;
+    return cardA->rank - cardB->rank;
+}
+
+// 2. 核心函式：檢查牌型並計分
+void CheckAndScoreHand(Card* deck, Card* hand, int handSize, int* deckTopIndex, float* score)
+{
+    // --- A. 收集玩家選中的牌 ---
+    Card selectedCards[5]; // 最多選5張
+    int selectedIndices[5]; // 記錄手牌的位置，方便之後標記 played
+    int count = 0;
+
+    for (int i = 0; i < handSize; i++)
+    {
+        if (hand[i].selected)
+        {
+            if (count < 5) 
+            {
+                selectedCards[count] = hand[i];
+                selectedIndices[count] = i;
+                count++;
+            }
+        }
+    }
+
+    if (count == 0) return; // 沒選牌就什麼都不做
+
+    // --- B. 排序選中的牌 (重要！) ---
+    // 這會把選中的牌依照點數 (Rank) 從小排到大，方便判斷對子或順子
+    qsort(selectedCards, count, sizeof(Card), CompareCardsByRank);
+
+    // --- C. 牌型判斷邏輯 ---
+    bool isValidHand = false;
+    float handScore = 0.0f;
+    const char* handName = "";
+
+    // 1. 判斷單張 (Single) - 1分
+    if (count == 1)
+    {
+        isValidHand = true;
+        handScore = 1.0f;
+        handName = "Single";
+    }
+    // 2. 判斷對子 (Pair) - 2分
+    else if (count == 2)
+    {
+        // 檢查兩張牌點數是否相同
+        if (selectedCards[0].rank == selectedCards[1].rank)
+        {
+            isValidHand = true;
+            handScore = 2.0f;
+            handName = "Pair";
+        }
+    }
+
+    // --- D. 結算 (若牌型合法) ---
+    if (isValidHand)
+    {
+        printf("打出牌型: %s | 得分: %.1f\n", handName, handScore);
+        
+        // 加分
+        *score += handScore;
+
+        // 將手牌標記為已打出 (Played)
+        for (int i = 0; i < count; i++)
+        {
+            int handIdx = selectedIndices[i];
+            hand[handIdx].played = true;      // 標記打出
+            hand[handIdx].selected = false;   // 取消選取
+            hand[handIdx].currentY = HAND_START_Y; // 重置動畫位置
+        }
+
+        // 立即補牌
+        DrawCards(deck, hand, handSize, deckTopIndex);
+    }
+    else
+    {
+        printf("無效牌型! (選了 %d 張)\n", count);
+        // 可以選擇在這裡加入音效或視覺提示告訴玩家牌型無效
     }
 }
