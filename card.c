@@ -1,4 +1,3 @@
-// card.c
 #include "card.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,6 +16,22 @@ const int HAND_START_X = 75;
 const int HAND_START_Y = 680;  
 const int CARD_GAP = 130;      
 const int CARD_STEP = (int)(CARD_WIDTH_BASE * CARD_SCALE + CARD_GAP);
+
+// --- 卡牌基礎分數表 (對應 Rank 0~12) ---
+const int BASE_RANK_SCORES[13] = {8,1,1,1,2,2,2,3,3,3,5,5,5};
+
+// 輔助函式：取得單張卡牌的分數
+int GetCardValue(Card c) {
+    int score = BASE_RANK_SCORES[c.rank];
+
+    // 特殊規則範例：如果是黑桃分數*2
+    if (c.suit == 0)
+    {
+       score *= 2;
+    }
+    
+    return score;
+}
 
 void LoadCardTextures() 
 {
@@ -43,8 +58,8 @@ void InitDeck(Card* deck) //建立主牌組
             deck[index].rank = r;
             deck[index].selected = false;
             deck[index].played = false;
-            deck[index].targetY = HAND_START_Y; 
-            deck[index].currentY = HAND_START_Y;
+            deck[index].targetY = (float)HAND_START_Y; 
+            deck[index].currentY = (float)HAND_START_Y;
             index++;
         }
     }
@@ -52,7 +67,7 @@ void InitDeck(Card* deck) //建立主牌組
 
 void ShuffleDeck(Card* deck, int size) //洗牌 (使用指標)
 {
-    srand(time(0));
+    srand((unsigned int)time(0));
 
     for (int i = size - 1; i > 0; i--)
     {
@@ -73,8 +88,8 @@ void DrawCards(Card* deck, Card* hand, int handSize, int* deckTopIndex) //抽牌
             hand[i] = deck[*deckTopIndex];
             hand[i].played = false; // 重置狀態
             hand[i].selected = false;
-            hand[i].currentY = HAND_START_Y; // 重置動畫位置
-            hand[i].targetY = HAND_START_Y;
+            hand[i].currentY = (float)HAND_START_Y; // 重置動畫位置
+            hand[i].targetY = (float)HAND_START_Y;
             (*deckTopIndex)++; // 牌庫頂端指標移動
         }
     }
@@ -89,7 +104,7 @@ void UpdateAndDrawHand(Card* hand, int handSize)
         if (hand[i].played) continue; // 打出的牌不繪製也不互動
 
         // 計算這張牌的座標
-        float x = HAND_START_X + i * CARD_STEP;
+        float x = (float)(HAND_START_X + i * CARD_STEP);
         float y = hand[i].currentY; // 使用當前動畫Y座標
 
         Texture2D tex = cardTextures[hand[i].suit][hand[i].rank];
@@ -106,7 +121,7 @@ void UpdateAndDrawHand(Card* hand, int handSize)
             {
                 hand[i].selected = !hand[i].selected;
                 // 設定動畫目標：選中時上浮 30 像素
-                hand[i].targetY = hand[i].selected ? (HAND_START_Y - 30) : HAND_START_Y;
+                hand[i].targetY = hand[i].selected ? (float)(HAND_START_Y - 30) : (float)HAND_START_Y;
             }
         }
 
@@ -123,7 +138,6 @@ void UpdateAndDrawHand(Card* hand, int handSize)
 }
 
 // 1. 比較函式 (為了讓 qsort 知道如何排列卡牌)
-// 排列順序：點數小 -> 點數大
 int CompareCardsByRank(const void* a, const void* b)
 {
     const Card* cardA = (const Card*)a;
@@ -132,13 +146,13 @@ int CompareCardsByRank(const void* a, const void* b)
 }
 
 // 2. 核心函式：檢查牌型並計分
-void CheckAndScoreHand(Card* deck, Card* hand, int handSize, int* deckTopIndex, float* score)
+void CheckAndScoreHand(Card* deck, Card* hand, int handSize, int* deckTopIndex, float* score, int level, GameModifiers* mods)
 {
-    // --- A. 收集玩家選中的牌 ---
-    Card selectedCards[5]; // 最多選5張
-    int selectedIndices[5]; // 記錄手牌的位置，方便之後標記 played
+    Card selectedCards[5];
+    int selectedIndices[5];
     int count = 0;
 
+    // 1. 收集選中的牌
     for (int i = 0; i < handSize; i++)
     {
         if (hand[i].selected)
@@ -152,63 +166,76 @@ void CheckAndScoreHand(Card* deck, Card* hand, int handSize, int* deckTopIndex, 
         }
     }
 
-    if (count == 0) return; // 沒選牌就什麼都不做
+    if (count == 0) return;
 
-    // --- B. 排序選中的牌 (重要！) ---
-    // 這會把選中的牌依照點數 (Rank) 從小排到大，方便判斷對子或順子
+    // 2. 排序
     qsort(selectedCards, count, sizeof(Card), CompareCardsByRank);
 
-    // --- C. 牌型判斷邏輯 ---
+    // 3. 計算「卡牌基礎總分」(Chips)
+    float baseChips = 0;
+    for (int i = 0; i < count; i++) {
+        baseChips += GetCardValue(selectedCards[i]);
+    }
+
+    // 4. 判斷牌型並套用倍率 (Mult)
     bool isValidHand = false;
-    float handScore = 0.0f;
+    float finalScore = 0.0f;
     const char* handName = "";
 
-    // 1. 判斷單張 (Single) - 1分
-    if (count == 1)
+    // 從修改器讀取目前的倍率
+    float currentMult = 1.0f;
+
+    if (count == 1) // 單張
     {
         isValidHand = true;
-        handScore = 1.0f;
         handName = "Single";
+        // 基礎倍率 * 道具倍率
+        currentMult = 1.0f * mods->multSingle; 
+        
+        // 關卡特殊規則 (Level 2 單張倍率減半)
+        if (level == 2) currentMult *= 0.5f;
+        if (level == 3) currentMult = 0.0f;
     }
-    // 2. 判斷對子 (Pair) - 2分
-    else if (count == 2)
+    else if (count == 2) // 對子
     {
-        // 檢查兩張牌點數是否相同
         if (selectedCards[0].rank == selectedCards[1].rank)
         {
             isValidHand = true;
-            handScore = 2.0f;
             handName = "Pair";
+            // 基礎倍率 * 道具倍率
+            currentMult = 2.0f * mods->multPair;
+            
+            // 關卡特殊規則
+            if (level == 2) currentMult *= 2.0f; // Level 2 對子加強
         }
     }
 
-    // --- D. 結算 (若牌型合法) ---
+    // 5. 最終結算： (牌面總分 + 額外籌碼) * 倍率
     if (isValidHand)
     {
-        printf("打出牌型: %s | 得分: %.1f\n", handName, handScore);
-        
-        // 加分
-        *score += handScore;
+        finalScore = (baseChips + mods->bonusChips) * currentMult;
 
-        // 將手牌標記為已打出 (Played)
+        printf("牌型: %s | 牌面分: %.0f | 倍率: %.1f | 總分: %.1f\n", 
+               handName, baseChips, currentMult, finalScore);
+        
+        *score += finalScore;
+
+        // 打出與補牌邏輯
         for (int i = 0; i < count; i++)
         {
             int handIdx = selectedIndices[i];
-            hand[handIdx].played = true;      // 標記打出
-            hand[handIdx].selected = false;   // 取消選取
-            hand[handIdx].currentY = HAND_START_Y; // 重置動畫位置
+            hand[handIdx].played = true;
+            hand[handIdx].selected = false;
+            hand[handIdx].currentY = (float)HAND_START_Y;
         }
-
-        // 立即補牌
         DrawCards(deck, hand, handSize, deckTopIndex);
     }
     else
     {
-        printf("無效牌型! (選了 %d 張)\n", count);
-        for (int i = 0; i < handSize; i++)
-        {
+        printf("無效牌型!\n");
+        for (int i = 0; i < handSize; i++) {
             hand[i].selected = false;
-            hand[i].targetY = HAND_START_Y; // 卡牌縮回去
+            hand[i].targetY = (float)HAND_START_Y;
         }
     }
 }

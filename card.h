@@ -2,7 +2,7 @@
 #define CARD_H
 
 #include "raylib.h"
-#include <stdlib.h> // 確保 malloc/free 可用
+#include <stdlib.h>
 #include <stdbool.h> // 確保 bool 可用
 
 typedef struct 
@@ -15,6 +15,14 @@ typedef struct
     float currentY; 
     float targetY;
 } Card;
+
+// --- 遊戲數值修改器結構 ---
+typedef struct {
+    float multSingle;   // 單張倍率
+    float multPair;     // 對子倍率
+    
+    int bonusChips;     // 額外籌碼 (例如：所有手牌 +10 分)
+} GameModifiers;
 
 // 全域資源宣告（於 card.c 定義）
 extern Texture2D cardTextures[4][13];
@@ -34,6 +42,5 @@ void ShuffleDeck(Card* deck, int size);
 void LoadCardTextures();
 void DrawCards(Card* deck, Card* hand, int handSize, int* deckTopIndex); 
 void UpdateAndDrawHand(Card* hand, int handSize);
-void CheckAndScoreHand(Card* deck, Card* hand, int handSize, int* deckTopIndex, float* score);
-
+void CheckAndScoreHand(Card* deck, Card* hand, int handSize, int* deckTopIndex, float* score, int level, GameModifiers* mods);
 #endif
