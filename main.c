@@ -1,6 +1,6 @@
 // main.c
 //初始化 + 呼叫主流程
-#include "raylib.h"
+#include <raylib.h>
 #include "card.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -9,12 +9,47 @@
 // --- 定義遊戲狀態 ---
 typedef enum {
     GAME_MENU,
-    GAME_PLAYING
+    GAME_PLAYING,
+    GAME_MAGIC_SELECT
 } GameState;
 
 // 定義關卡目標
 const float LEVEL_TARGETS[3] = {55.0f, 60.0f, 65.0f};
 #define MAX_HANDS 10
+
+// --- 魔法卡資料庫 (可以自己擴充) ---
+const MagicCard CARD_DATABASE[] = {
+    {"Single Master", "Single Hand Mult +1.0", EFFECT_MULT_SINGLE, 1.0f, SKYBLUE},
+    {"Pair Expert",   "Pair Hand Mult +1.0",   EFFECT_MULT_PAIR,   1.0f, ORANGE},
+    {"Chip Bonus",    "All Hands +10 Chips",   EFFECT_BONUS_CHIPS, 10.0f, GOLD},
+    {"Single Boost",  "Single Hand Mult +2.0", EFFECT_MULT_SINGLE, 2.0f, DARKBLUE},
+    {"Mega Chips",    "All Hands +20 Chips",   EFFECT_BONUS_CHIPS, 20.0f, YELLOW}
+};
+const int TOTAL_MAGIC_CARDS = 5;
+
+void GenerateMagicOptions(MagicCard options[]) {
+    for (int i = 0; i < 3; i++) {
+        int randIdx = rand() % TOTAL_MAGIC_CARDS;
+        options[i] = CARD_DATABASE[randIdx];
+    }
+}
+
+// 繪製魔法卡 UI
+bool DrawMagicCard(MagicCard card, Rectangle rect) {
+    Vector2 mouse = GetMousePosition();
+    bool hover = CheckCollisionPointRec(mouse, rect);
+    
+    // 背景
+    DrawRectangleRec(rect, hover ? Fade(card.color, 0.8f) : card.color);
+    DrawRectangleLinesEx(rect, 3, BLACK);
+    
+    // 文字
+    DrawText(card.name, (int)(rect.x + 10), (int)(rect.y + 20), 20, BLACK);
+    DrawText(card.description, (int)(rect.x + 10), (int)(rect.y + 60), 16, DARKGRAY);
+    DrawText("CLICK TO SELECT", (int)(rect.x + 10), (int)(rect.y + 160), 10, WHITE);
+    
+    return (hover && IsMouseButtonPressed(MOUSE_LEFT_BUTTON));
+}
 
 // 輔助函式：重置/開始關卡 (這是切換關卡時必須的)
 void ResetLevel(Card* deck, Card* hand, int* deckTopIndex, float* score, int* handsPlayed) {
@@ -69,8 +104,14 @@ int main()
     GameModifiers mods = {0}; 
     mods.multSingle = 1.0f; // 單張預設 1倍
     mods.multPair = 1.0f;   // 對子預設 1倍
-    mods.bonusChips = 0;    // 無額外籌碼
+    mods.multStraight = 1.0f;
+    mods.multFlush = 1.0f;
+    mods.multFullHouse = 1.0f;
+    mods.multFourOfAKind = 1.0f;
+    mods.multStraightFlush = 1.0f;
+    mods.bonusChips = 0;
 
+    MagicCard currentOptions[3];
     // 初始化手牌狀態
     for(int i=0; i<7; i++) hand[i].played = true; 
 
@@ -127,86 +168,77 @@ int main()
             // 處理過關進入下一關
             if (isLevelClear && IsKeyPressed(KEY_ENTER)) {
                 if (currentLevel < 3) {
-                    currentLevel++;
+                    GenerateMagicOptions(currentOptions);
+                    // 2. 切換狀態
+                    currentState = GAME_MAGIC_SELECT;
                     isLevelClear = false;
-                    ResetLevel(deck, hand, &deckTopIndex, &score, &handsPlayed);
                 } else {
                     isGameClear = true;
                 }
             }
 
-            // 隨時可以按 ESC 回到選單 (或是失敗/全破後按 R)
-            if (IsKeyPressed(KEY_ESCAPE) || (isGameOver && IsKeyPressed(KEY_R)) || (isGameClear && IsKeyPressed(KEY_R)))
-            {
-                currentState = GAME_MENU; // 回到選單
+            if ((isGameOver || isGameClear) && IsKeyPressed(KEY_R)) {
+                currentState = GAME_MENU;
                 isGameOver = false;
                 isGameClear = false;
-                isLevelClear = false;
-                // 回選單建議也重置一下變數，或者保持狀態
+                mods = (GameModifiers){1.0f, 1.0f, 0}; // 重置能力
             }
+  
         } 
 
         BeginDrawing();
         ClearBackground(RAYWHITE);
         
-        if (currentState == GAME_MENU)
-        {
-            // --- 繪製開始選單 ---
-            DrawText("GAME MENU", 500, 100, 60, DARKBLUE);
-            DrawText("Select a Level to Start", 480, 180, 30, DARKGRAY);
-
-            // 繪製三個關卡按鈕
-            if (DrawButton("Level 1 (Target: 55)", (Rectangle){440, 300, 400, 80}, font)) {
+        if (currentState == GAME_MENU) {
+            DrawText("GAME MENU", 500, 100, 60, BLUE);
+            if (DrawButton("Start Level 1", (Rectangle){500, 300, 280, 60})) {
                 currentLevel = 1;
                 ResetLevel(deck, hand, &deckTopIndex, &score, &handsPlayed);
                 currentState = GAME_PLAYING;
             }
-            
-            if (DrawButton("Level 2 (Target: 60)", (Rectangle){440, 400, 400, 80}, font)) {
-                currentLevel = 2;
-                ResetLevel(deck, hand, &deckTopIndex, &score, &handsPlayed);
-                currentState = GAME_PLAYING;
-            }
-
-            if (DrawButton("Level 3 (Target: 65)", (Rectangle){440, 500, 400, 80}, font)) {
-                currentLevel = 3;
-                ResetLevel(deck, hand, &deckTopIndex, &score, &handsPlayed);
-                currentState = GAME_PLAYING;
-            }
         }
-        else if (currentState == GAME_PLAYING)
-        {
-            // --- 繪製遊戲畫面 ---
+        else if (currentState == GAME_PLAYING) {
             UpdateAndDrawHand(hand, 7);
-            
-            // UI 顯示
             DrawText(TextFormat("Level: %d", currentLevel), 10, 10, 30, BLUE);
             DrawText(TextFormat("Score: %.1f / %.0f", score, LEVEL_TARGETS[currentLevel-1]), 10, 50, 30, DARKGREEN);
             DrawText(TextFormat("Hands: %d / %d", handsPlayed, MAX_HANDS), 10, 90, 30, BLACK);
-            DrawText(message, 400, 50, 30, RED);
             
-            // 提示按鍵
-            DrawText("[ESC] Back to Menu", 1000, 10, 20, GRAY);
+            // 顯示當前能力
+            DrawText(TextFormat("Mods: Single x%.1f | Pair x%.1f | Bonus +%d", 
+                     mods.multSingle, mods.multPair, mods.bonusChips), 300, 10, 20, PURPLE);
 
-            // 狀態視窗 (過關/失敗)
-            if (isLevelClear && !isGameClear) {
-                DrawRectangle(300, 200, 680, 300, Fade(WHITE, 0.9f));
-                DrawRectangleLines(300, 200, 680, 300, BLACK);
-                DrawText("LEVEL CLEARED!", 450, 250, 50, GREEN);
-                DrawText("Press [ENTER] for Next Level", 380, 350, 40, DARKGRAY);
+            if (isLevelClear) {
+                 DrawRectangle(300, 200, 680, 300, Fade(WHITE, 0.9f));
+                 DrawRectangleLines(300, 200, 680, 300, BLACK);
+                 DrawText("LEVEL CLEARED!", 450, 250, 50, GREEN);
+                 DrawText("Press [ENTER] to Select Magic Card", 350, 350, 30, DARKGRAY);
             }
-            else if (isGameClear) {
-                DrawRectangle(300, 200, 680, 300, Fade(GOLD, 0.9f));
-                DrawText("CONGRATULATIONS!", 380, 250, 50, MAROON);
-                DrawText("Press [R] to Return Menu", 400, 400, 30, DARKGRAY);
-            }
-            else if (isGameOver) {
-                DrawRectangle(300, 200, 680, 300, Fade(BLACK, 0.8f));
-                DrawText("GAME OVER", 500, 250, 50, RED);
-                DrawText("Press [R] to Return Menu", 400, 350, 30, WHITE);
+            // ... (GameOver / GameClear 顯示邏輯)
+        }
+        else if (currentState == GAME_MAGIC_SELECT) {
+            // --- 魔法卡選擇介面 ---
+            DrawText("Select a Magic Card!", 450, 100, 40, DARKBLUE);
+            
+            // 繪製三張卡
+            for (int i = 0; i < 3; i++) {
+                Rectangle rect = {300 + i * 250, 250, 220, 300};
+                if (DrawMagicCard(currentOptions[i], rect)) {
+                    // --- 點擊後的邏輯 ---
+                    MagicCard chosen = currentOptions[i];
+                    
+                    // 應用效果
+                    if (chosen.type == EFFECT_MULT_SINGLE) mods.multSingle += chosen.value;
+                    if (chosen.type == EFFECT_MULT_PAIR)   mods.multPair += chosen.value;
+                    if (chosen.type == EFFECT_BONUS_CHIPS) mods.bonusChips += (int)chosen.value;
+                    
+                    // 進入下一關
+                    currentLevel++;
+                    ResetLevel(deck, hand, &deckTopIndex, &score, &handsPlayed);
+                    currentState = GAME_PLAYING;
+                }
             }
         }
-        
+
         EndDrawing();
     }
 

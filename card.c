@@ -21,16 +21,11 @@ const int CARD_STEP = (int)(CARD_WIDTH_BASE * CARD_SCALE + CARD_GAP);
 const int BASE_RANK_SCORES[13] = {8,1,1,1,2,2,2,3,3,3,5,5,5};
 
 // 輔助函式：取得單張卡牌的分數
-int GetCardValue(Card c) {
-    int score = BASE_RANK_SCORES[c.rank];
-
-    // 特殊規則範例：如果是黑桃分數*2
-    if (c.suit == 0)
-    {
-       score *= 2;
-    }
-    
-    return score;
+int GetCardValue(int rank) {
+    // A=11, 2=2, 3=3 ... 10,J,Q,K=10
+    if (rank == 0) return 11; // Ace
+    if (rank >= 9) return 10; // 10, J, Q, K
+    return rank + 1;          // 2~9
 }
 
 void LoadCardTextures() 
@@ -137,6 +132,33 @@ void UpdateAndDrawHand(Card* hand, int handSize)
 
 }
 
+// 輔助：判斷是否為同花 (Flush)
+bool IsFlush(Card cards[], int count) {
+    if (count != 5) return false;
+    int suit = cards[0].suit;
+    for (int i = 1; i < count; i++) {
+        if (cards[i].suit != suit) return false;
+    }
+    return true;
+}
+
+bool IsStraight(Card cards[], int count) {
+    if (count != 5) return false;
+    for (int i = 0; i < count - 1; i++) {
+        // 因為已經排序過，後一張的 rank 必須等於前一張 + 1
+        if (cards[i+1].rank != cards[i].rank + 1) {
+            // 特殊處理：如果是 10, J, Q, K, A (Rank 9, 10, 11, 12, 0)
+            // 排序後會變成 0, 9, 10, 11, 12 (A, 10, J, Q, K)
+            if (i == 0 && cards[0].rank == 0 && cards[1].rank == 9 && 
+                cards[2].rank == 10 && cards[3].rank == 11 && cards[4].rank == 12) {
+                return true;
+            }
+            return false;
+        }
+    }
+    return true;
+}
+
 // 1. 比較函式 (為了讓 qsort 知道如何排列卡牌)
 int CompareCardsByRank(const void* a, const void* b)
 {
@@ -153,12 +175,9 @@ void CheckAndScoreHand(Card* deck, Card* hand, int handSize, int* deckTopIndex, 
     int count = 0;
 
     // 1. 收集選中的牌
-    for (int i = 0; i < handSize; i++)
-    {
-        if (hand[i].selected)
-        {
-            if (count < 5) 
-            {
+    for (int i = 0; i < handSize; i++) {
+        if (hand[i].selected) {
+            if (count < 5) {
                 selectedCards[count] = hand[i];
                 selectedIndices[count] = i;
                 count++;
@@ -168,71 +187,93 @@ void CheckAndScoreHand(Card* deck, Card* hand, int handSize, int* deckTopIndex, 
 
     if (count == 0) return;
 
-    // 2. 排序
+    // 2. 排序 (判斷牌型的基礎)
     qsort(selectedCards, count, sizeof(Card), CompareCardsByRank);
 
-    // 3. 計算「卡牌基礎總分」(Chips)
+    // 3. 計算基礎牌面分 (Chips)
     float baseChips = 0;
     for (int i = 0; i < count; i++) {
         baseChips += GetCardValue(selectedCards[i]);
     }
 
-    // 4. 判斷牌型並套用倍率 (Mult)
+    // 4. 判斷牌型並設定倍率
     bool isValidHand = false;
-    float finalScore = 0.0f;
     const char* handName = "";
+    float currentMult = 0.0f;
 
-    // 從修改器讀取目前的倍率
-    float currentMult = 1.0f;
-
-    if (count == 1) // 單張
-    {
+    // --- 單張與對子 ---
+    if (count == 1) {
         isValidHand = true;
         handName = "Single";
-        // 基礎倍率 * 道具倍率
-        currentMult = 1.0f * mods->multSingle; 
-        
-        // 關卡特殊規則 (Level 2 單張倍率減半)
+        currentMult = 1.0f * mods->multSingle;
         if (level == 2) currentMult *= 0.5f;
         if (level == 3) currentMult = 0.0f;
     }
-    else if (count == 2) // 對子
-    {
-        if (selectedCards[0].rank == selectedCards[1].rank)
-        {
+    else if (count == 2) {
+        if (selectedCards[0].rank == selectedCards[1].rank) {
             isValidHand = true;
             handName = "Pair";
-            // 基礎倍率 * 道具倍率
             currentMult = 2.0f * mods->multPair;
-            
-            // 關卡特殊規則
-            if (level == 2) currentMult *= 2.0f; // Level 2 對子加強
+            if (level == 2) currentMult *= 2.0f;
+        }
+    }
+    // --- 5 張牌的複雜牌型 ---
+    else if (count == 5) {
+        bool flush = IsFlush(selectedCards, count);
+        bool straight = IsStraight(selectedCards, count);
+
+        // A. 同花順 (Straight Flush) - 12分 / 8倍 (範例)
+        if (flush && straight) {
+            isValidHand = true;
+            handName = "Straight Flush";
+            currentMult = 8.0f * mods->multStraightFlush;
+        }
+        // B. 鐵支 (Four of a Kind) - 10分 / 7倍 (範例)
+        // 排序後只可能是 [A A A A B] 或 [B A A A A]
+        else if ((selectedCards[0].rank == selectedCards[3].rank) || 
+                 (selectedCards[1].rank == selectedCards[4].rank)) {
+            isValidHand = true;
+            handName = "Four of a Kind";
+            currentMult = 7.0f * mods->multFourOfAKind;
+        }
+        // C. 葫蘆 (Full House) - 8分 / 4倍 (範例)
+        // 排序後只可能是 [A A A B B] 或 [A A B B B]
+        else if ((selectedCards[0].rank == selectedCards[2].rank && selectedCards[3].rank == selectedCards[4].rank) ||
+                 (selectedCards[0].rank == selectedCards[1].rank && selectedCards[2].rank == selectedCards[4].rank)) {
+            isValidHand = true;
+            handName = "Full House";
+            currentMult = 4.0f * mods->multFullHouse;
+        }
+        // D. 同花 (Flush) - 6分 / 3倍 (範例)
+        else if (flush) {
+            isValidHand = true;
+            handName = "Flush";
+            currentMult = 3.0f * mods->multFlush;
+        }
+        // E. 順子 (Straight) - 5分 / 2倍 (範例)
+        else if (straight) {
+            isValidHand = true;
+            handName = "Straight";
+            currentMult = 2.0f * mods->multStraight;
         }
     }
 
-    // 5. 最終結算： (牌面總分 + 額外籌碼) * 倍率
-    if (isValidHand)
-    {
-        finalScore = (baseChips + mods->bonusChips) * currentMult;
-
-        printf("牌型: %s | 牌面分: %.0f | 倍率: %.1f | 總分: %.1f\n", 
-               handName, baseChips, currentMult, finalScore);
+    // 5. 結算與補牌
+    if (isValidHand) {
+        float finalScore = (baseChips + mods->bonusChips) * currentMult;
+        printf("牌型: %s | 基礎分: %.0f | 倍率: %.1f | 總分: %.1f\n", handName, baseChips, currentMult, finalScore);
         
         *score += finalScore;
 
-        // 打出與補牌邏輯
-        for (int i = 0; i < count; i++)
-        {
-            int handIdx = selectedIndices[i];
-            hand[handIdx].played = true;
-            hand[handIdx].selected = false;
-            hand[handIdx].currentY = (float)HAND_START_Y;
+        for (int i = 0; i < count; i++) {
+            int idx = selectedIndices[i];
+            hand[idx].played = true;
+            hand[idx].selected = false;
+            hand[idx].currentY = (float)HAND_START_Y;
         }
         DrawCards(deck, hand, handSize, deckTopIndex);
-    }
-    else
-    {
-        printf("無效牌型!\n");
+    } else {
+        printf("無效牌型! (選了 %d 張)\n", count);
         for (int i = 0; i < handSize; i++) {
             hand[i].selected = false;
             hand[i].targetY = (float)HAND_START_Y;
