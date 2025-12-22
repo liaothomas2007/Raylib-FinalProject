@@ -1,7 +1,7 @@
 #ifndef CARD_H
 #define CARD_H
 
-#include "raylib.h"
+#include <raylib.h>
 #include <stdlib.h>
 #include <stdbool.h> // 確保 bool 可用
 
@@ -22,15 +22,7 @@ typedef struct {
     Color color;            // 卡片顏色 (視覺區分)
 } MagicCard;
 
-// --- 3. 定義遊戲數值修改器 (玩家身上的 Buff) ---
-typedef struct {
-    float multSingle;   // 單張倍率 (預設 1.0)
-    float multPair;     // 對子倍率 (預設 1.0)
-    int bonusChips;     // 額外籌碼 (預設 0)
-    // 之後可擴充更多 (如順子倍率等)
-} GameModifiers;
-
-// --- 4. 原本的卡牌結構 ---
+// 卡牌結構 ---
 typedef struct 
 {
     int rank;
@@ -41,16 +33,6 @@ typedef struct
     float targetY;
 } Card;
 
-typedef struct 
-{
-    int rank;
-    int suit;
-    bool selected;
-    bool played;
-    // 統一用於卡牌動畫
-    float currentY; 
-    float targetY;
-} Card;
 
 // --- 遊戲數值修改器結構 ---
 typedef struct {

@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
-#include "raylib.h"
+#include <raylib.h>
 
 // 全域資源定義（配合 card.h 的 extern）
 Texture2D cardTextures[4][13];
@@ -193,7 +193,7 @@ void CheckAndScoreHand(Card* deck, Card* hand, int handSize, int* deckTopIndex, 
     // 3. 計算基礎牌面分 (Chips)
     float baseChips = 0;
     for (int i = 0; i < count; i++) {
-        baseChips += GetCardValue(selectedCards[i]);
+        baseChips += GetCardValue(selectedCards[i].rank);
     }
 
     // 4. 判斷牌型並設定倍率

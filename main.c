@@ -1,10 +1,10 @@
 // main.c
 //初始化 + 呼叫主流程
-#include <raylib.h>
 #include "card.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h> 
+#include <raylib.h>
 
 // --- 定義遊戲狀態 ---
 typedef enum {
@@ -44,9 +44,9 @@ bool DrawMagicCard(MagicCard card, Rectangle rect) {
     DrawRectangleLinesEx(rect, 3, BLACK);
     
     // 文字
-    DrawText(card.name, (int)(rect.x + 10), (int)(rect.y + 20), 20, BLACK);
-    DrawText(card.description, (int)(rect.x + 10), (int)(rect.y + 60), 16, DARKGRAY);
-    DrawText("CLICK TO SELECT", (int)(rect.x + 10), (int)(rect.y + 160), 10, WHITE);
+    DrawText(card.name, (int)(rect.x + 10), (int)(rect.y + 20), 30, BLACK);
+    DrawText(card.description, (int)(rect.x + 10), (int)(rect.y + 60), 20, DARKGRAY);
+    DrawText("CLICK TO SELECT", (int)(rect.x + 10), (int)(rect.y + 160), 15, WHITE);
     
     return (hover && IsMouseButtonPressed(MOUSE_LEFT_BUTTON));
 }
@@ -143,7 +143,7 @@ int main()
        if (currentState == GAME_PLAYING)
         {
             float targetScore = LEVEL_TARGETS[currentLevel - 1];
-            DrawText(TextFormat("Single Mult: x%.1f", mods.multSingle), 10, 130, 20, PURPLE);
+            
             if (!isGameOver && !isGameClear && !isLevelClear)
             {
                 if (IsKeyPressed(KEY_SPACE))
@@ -191,7 +191,7 @@ int main()
         
         if (currentState == GAME_MENU) {
             DrawText("GAME MENU", 500, 100, 60, BLUE);
-            if (DrawButton("Start Level 1", (Rectangle){500, 300, 280, 60})) {
+            if (DrawButton("Start Level 1", (Rectangle){500, 300, 280, 60},font)) {
                 currentLevel = 1;
                 ResetLevel(deck, hand, &deckTopIndex, &score, &handsPlayed);
                 currentState = GAME_PLAYING;
@@ -199,6 +199,7 @@ int main()
         }
         else if (currentState == GAME_PLAYING) {
             UpdateAndDrawHand(hand, 7);
+            DrawText(TextFormat("Single Mult: x%.1f", mods.multSingle), 10, 130, 20, PURPLE);
             DrawText(TextFormat("Level: %d", currentLevel), 10, 10, 30, BLUE);
             DrawText(TextFormat("Score: %.1f / %.0f", score, LEVEL_TARGETS[currentLevel-1]), 10, 50, 30, DARKGREEN);
             DrawText(TextFormat("Hands: %d / %d", handsPlayed, MAX_HANDS), 10, 90, 30, BLACK);

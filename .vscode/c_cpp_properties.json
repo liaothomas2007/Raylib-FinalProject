@@ -6,7 +6,11 @@
         "${workspaceFolder}/**",
         "C:/raylib/include"
       ],
-      "defines": [],
+      "defines": [
+        "_DEBUG",
+        "UNICODE",
+        "_UNICODE"
+      ],
       "compilerPath": "C:/mingw64/bin/gcc.exe",
       "cStandard": "c17",
       "cppStandard": "c++17",
